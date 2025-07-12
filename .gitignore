@@ -1,0 +1,80 @@
+# === OS-specific files ===
+.DS_Store
+Thumbs.db
+
+# === C++ build artifacts ===
+*.o
+*.obj
+*.lo
+*.a
+*.so
+*.dll
+*.dylib
+*.lib
+*.exe
+*.out
+*.app
+*.i
+*.ii
+*.gch
+
+# === CMake ===
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+build/
+build-*/
+install/
+compile_commands.json
+
+# Ninja build files
+.ninja_deps
+.ninja_log
+rules.ninja
+build.ninja
+
+# === IDEs ===
+# CLion
+.idea/
+cmake-build-*/
+
+# Visual Studio
+*.sln
+*.vcxproj*
+*.pdb
+*.idb
+*.ipch
+*.aps
+*.user
+*.opendb
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# === Logs and debugging ===
+*.log
+*.stackdump
+*.core
+
+# === Backup/Temp ===
+*~
+*.swp
+*.tmp
+
+# === Tests and coverage ===
+*.gcda
+*.gcno
+*.gcov
+*.lcov
+
+# === Python/Packaging (if CMake+Python) ===
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# === Custom local files ===
+.env
+.env.local
+local_config.h
