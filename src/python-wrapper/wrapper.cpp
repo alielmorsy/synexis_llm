@@ -89,8 +89,8 @@ private:
 PYBIND11_MODULE(synexis_python, m) {
     m.doc() = "Python bindings for the Synexis C++ library";
 
-    py::class_<StreamIterator>(m, "StreamIterator")
-            .def("__iter__", [](StreamIterator &it) -> StreamIterator & { return it; })
+    py::class_<StreamIterator, std::shared_ptr<StreamIterator>>(m, "StreamIterator")
+            .def("__iter__", [](std::shared_ptr<StreamIterator> it) -> std::shared_ptr<StreamIterator> { return it; })
             .def("__next__", &StreamIterator::next);
 
     // Binding for SamplingParams, needed by TaskParams
