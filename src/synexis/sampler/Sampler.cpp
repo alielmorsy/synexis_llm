@@ -2,7 +2,7 @@
 #include <regex>
 #include <sstream>
 #include <stdexcept>
-#include <synexis/sampler/Sampler.h>
+#include <Sampler.h>
 
 #include <llama-cpp.h>
 

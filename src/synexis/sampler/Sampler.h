@@ -1,8 +1,8 @@
 #pragma once
 
-#include "Enums.h"
+#include "../../include/synexis/sampler/Enums.h"
 #include "RingBuffer.h"
-#include "StructParams.h"
+#include "../../include/synexis/sampler/StructParams.h"
 
 
 struct llama_sampler;

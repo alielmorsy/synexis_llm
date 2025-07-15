@@ -1,6 +1,7 @@
 set(SYNEAXIS_SOURCES
         sampler/Sampler.cpp
         Synexis.cpp
+        SynexisImpl.cpp
         SynexisSlot.cpp
 )
 

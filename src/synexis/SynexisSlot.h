@@ -2,16 +2,15 @@
 
 #include <iostream>
 #include <unordered_map>
-#include <synexis/sampler/Sampler.h>
 
 #include "mtmd-helper.h"
 #include "mtmd.h"
+#include "sampler/Sampler.h"
 
 
 enum SlotState {
     SLOT_STATE_IDLE,
     SLOT_STATE_STARTED,
-    // TODO: this state is only used for setting up the initial prompt processing; maybe merge it with launch_slot_with_task in the future
     SLOT_STATE_PROCESSING_PROMPT,
     SLOT_STATE_DONE_PROMPT,
     SLOT_STATE_GENERATING,

@@ -54,9 +54,8 @@ const mtmd::input_chunk_ptr &TaskTokens::find_chunk(llama_pos pos) const {
     auto it = mediaPosition.find(pos);
     if (it != mediaPosition.end()) {
         return it->second;
-    } else {
-        throw std::runtime_error("Chunk not found");
     }
+    throw std::runtime_error("Chunk not found");
 }
 
 
@@ -76,7 +75,9 @@ void TaskTokens::keepFirst(size_t n) {
             llama_token last_token = tokens[n - 1];
             // make sure we never remove tokens in the middle of an image
             if (last_token == LLAMA_TOKEN_NULL) {
+#ifndef NDEBUG
                 find_chunk(n - 1); // will throw an error if the token is not begin-of-chunk
+#endif
             }
         }
         // remove all image chunks that are not used anymore

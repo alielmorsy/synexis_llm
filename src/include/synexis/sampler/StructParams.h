@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-#include <synexis/sampler/Enums.h>
+#include "Enums.h"
 
 struct SamplingParams {
     uint32_t seed = 1900; // Default seed
@@ -64,5 +64,4 @@ struct SamplingParams {
     bool grammar_lazy = false;
     std::vector<GrammarTrigger> grammar_triggers;
     std::set<int32_t> preserved_tokens;
-
 };
