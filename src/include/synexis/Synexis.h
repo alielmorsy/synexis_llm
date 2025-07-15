@@ -15,15 +15,12 @@ struct SynexisSlot;
 
 class Synexis {
 public:
-    Synexis(const std::string &model_path, const llama_context_params &params, int n_slots = 1);
+    Synexis(const std::string &model_path, const llama_context_params &params, int n_slots);
 
-    void stop();
-
-    std::string generate_now(std::string prompt);
 
     ~Synexis();
 
-    int add_task(const std::string &prompt, const SamplingParams &sampling_params);
+    int addTask(const std::string &prompt, const SamplingParams &sampling_params);
 
     std::string get_result(int task_id);
 
@@ -31,12 +28,11 @@ public:
 
     void run();
 
-    void updateLoop();
-
-    void batch_add(llama_batch &batch, llama_token tokenID, int32_t nPast, const std::vector<llama_seq_id> &seq_ids,
-                   bool logits);
+    void stop();
 
 private:
+    void updateLoop();
+
     [[nodiscard]] SynexisSlot *findEmptySlot() const;
 
     llama_model *model;

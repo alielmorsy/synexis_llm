@@ -16,7 +16,6 @@ class SynexisSampler {
 public:
     explicit SynexisSampler(llama_model *model, const SamplingParams &params = SamplingParams{});
 
-    ~SynexisSampler();
 
     // Disable copy constructor and assignment
     SynexisSampler(const SynexisSampler &) = delete;
@@ -36,26 +35,10 @@ public:
     // Configuration methods
     void set_grammar(const std::string &grammar_str, bool lazy = false);
 
-    void addGrammarTrigger(const GrammarTrigger &trigger);
-
-    void clearGrammarTriggers();
-
-
-    void addLogitBias(int32_t token, float bias);
-
-    void clear_logit_bias();
-
-    // State management
     void reset();
 
-    void clearHistory();
 
-    // Getters
-    const SamplingParams &params() const { return params_; }
-
-    const std::vector<int32_t> &getTokenHistory() const;
-
-    bool isInitialized() const { return grammar_sampler_ != nullptr && chain_sampler_ != nullptr; }
+    ~SynexisSampler();
 
 private:
     // Internal methods

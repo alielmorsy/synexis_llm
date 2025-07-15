@@ -42,8 +42,8 @@ SynexisSampler &SynexisSampler::operator=(SynexisSampler &&other) noexcept {
         params_ = std::move(other.params_);
         model_ = other.model_;
         vocab_ = other.vocab_;
-        grammar_sampler_ = std::move(other.grammar_sampler_);
-        chain_sampler_ = std::move(other.chain_sampler_);
+        grammar_sampler_ = other.grammar_sampler_;
+        chain_sampler_ = other.chain_sampler_;
         token_history_ = std::move(other.token_history_);
         current_candidates_ = std::move(other.current_candidates_);
         current_candidates_array_ = std::move(other.current_candidates_array_);
@@ -126,19 +126,6 @@ void SynexisSampler::set_grammar(const std::string &grammar_str, bool lazy) {
 }
 
 
-void SynexisSampler::addLogitBias(llama_token token, float bias) {
-}
-
-void SynexisSampler::clear_logit_bias() {
-}
-
-
-void SynexisSampler::clearHistory() {
-}
-
-const std::vector<llama_token> &SynexisSampler::getTokenHistory() const {
-    return {};
-}
 
 bool SynexisSampler::initialize_grammar_sampler() {
     std::vector<std::string> trigger_patterns;

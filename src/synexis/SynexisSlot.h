@@ -38,7 +38,7 @@ public:
 
     TaskTokens(TaskTokens &&) = default;
 
-    TaskTokens &operator=(TaskTokens&&) = default;
+    TaskTokens &operator=(TaskTokens &&) = default;
 
 
     explicit TaskTokens(mtmd::input_chunks &mtmd_chunks) {
@@ -121,6 +121,12 @@ struct SynexisSlot {
     int n_decoded;
 
     std::string result;
+
+    SynexisSlot() = default;
+
+    SynexisSlot(SynexisSlot &&) = default;
+
+    SynexisSlot &operator=(SynexisSlot &&) = default;
 
     void reset() {
         n_past = 0;

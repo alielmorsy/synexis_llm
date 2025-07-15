@@ -1,14 +1,14 @@
 #include "synexis/Synexis.h"
 
 #include <algorithm>
-#include <assert.h>
+#include <cassert>
 #include <iostream>
 #include <stdexcept>
 
 #include "batch_helper.h"
 #include "mtmd-helper.h"
 #include "SynexisSlot.h"
-#include "SynexisSlot.h"
+
 
 Synexis::Synexis(const std::string &model_path, const llama_context_params &params, int n_slots) {
     ggml_backend_load_all();
@@ -31,14 +31,14 @@ Synexis::Synexis(const std::string &model_path, const llama_context_params &para
         slots.push_back(std::move(slot));
     }
     // {
-    //     mtmd_context_params mparams = mtmd_context_params_default();
+    mtmd_context_params mparams = mtmd_context_params_default();
     //     mparams.use_gpu = true;
     //     mparams.print_timings = true;
     //     mparams.n_threads = 12;
     //     mparams.verbosity = GGML_LOG_LEVEL_ERROR;
     //     mtmd_context = (mtmd_init_from_file(R"(D:\models\qwen\mmproj-Qwen2.5-Omni-7B-Q8_0.gguf)", model, mparams));
     // }
-    batch = llama_batch_init(std::max(2048, n_slots), 0, 1);
+    batch = llama_batch_init(params.n_batch, 0, 1);
 }
 
 void Synexis::stop() {
@@ -46,52 +46,12 @@ void Synexis::stop() {
 }
 
 
-std::string Synexis::generate_now(std::string prompt) {
-    mtmd_input_text text;
-    text.text = prompt.c_str();
-    text.add_special = false;
-    text.parse_special = true;
-
-    mtmd::input_chunks chunks(mtmd_input_chunks_init());
-    int32_t res = mtmd_tokenize(mtmd_context,
-                                chunks.ptr.get(),
-                                &text,
-                                nullptr,
-                                0);
-
-    llama_pos new_n_past;
-    int nPast = 0;
-    if (mtmd_helper_eval_chunks(mtmd_context,
-                                ctx,
-                                chunks.ptr.get(),
-                                nPast,
-                                0,
-                                2048,
-                                true,
-                                &new_n_past)) {
-        throw std::runtime_error("Failed to evaluate");
-    }
-    SynexisSampler sampler(model);
-    std::string content = "";
-    nPast = new_n_past;
-    for (int i = 0; i < 100; ++i) {
-        llama_token token_id = sampler.sample(ctx, -1);
-        sampler.accept(token_id, true);
-        if (llama_vocab_is_eog(llama_model_get_vocab(model), token_id)) {
-            break;
-        }
-        content += tokenToPiece(token_id, true);
-        batch_add(batch, token_id, nPast, {0}, true);
-        llama_decode(ctx, batch);
-        nPast++;
-    }
-    return content;
-}
-
 //TODO: better support for files :)
-int Synexis::add_task(const std::string &prompt, const SamplingParams &sampling_params) {
+int Synexis::addTask(const std::string &prompt, const SamplingParams &sampling_params) {
     const bool hasMtmd = mtmd_context != nullptr;
     auto slot = findEmptySlot();
+    if (!slot) {
+    }
     if (hasMtmd) {
         mtmd::bitmaps bitmaps;
         mtmd::input_chunks chunks(mtmd_input_chunks_init());
@@ -129,7 +89,7 @@ int Synexis::add_task(const std::string &prompt, const SamplingParams &sampling_
             delete slot->sampler;
         }
     }
-    slot->sampler = new SynexisSampler(model);
+    slot->sampler = new SynexisSampler(model, sampling_params);
     slot->state = SLOT_STATE_STARTED;
     return slot->id;
 }
@@ -165,10 +125,13 @@ std::string Synexis::tokenToPiece(llama_token token, bool special) {
 }
 
 void Synexis::run() {
-    running = true;
-    while (running) {
-        updateLoop();
-    }
+    auto runner = [this]() {
+        running = true;
+        while (running) {
+            updateLoop();
+        }
+    };
+    workerThread = std::thread(runner);
 }
 
 void Synexis::updateLoop() {
@@ -379,7 +342,7 @@ void Synexis::updateLoop() {
 
             auto vocab = llama_model_get_vocab(model);
             slot->result += tokenToPiece(id, false);
-            std::cout << "Generated for slot " << slot->id << ": " << slot->result<<std::endl;
+            std::cout << "Generated for slot " << slot->id << ": " << slot->result << std::endl;
             if (!slot->processToken(slot.get(), vocab, id)) {
                 slot->release();
                 continue;
@@ -390,18 +353,7 @@ void Synexis::updateLoop() {
     }
 }
 
-void Synexis::batch_add(llama_batch &batch, llama_token tokenID, int32_t nPast,
-                        const std::vector<llama_seq_id> &seq_ids,
-                        bool logits) {
-    batch.token[batch.n_tokens] = tokenID;
-    batch.pos[batch.n_tokens] = nPast;
-    batch.n_seq_id[batch.n_tokens] = seq_ids.size();
-    for (size_t i = 0; i < seq_ids.size(); ++i) {
-        batch.seq_id[batch.n_tokens][i] = seq_ids[i];
-    }
-    batch.logits[batch.n_tokens] = logits;
-    batch.n_tokens++;
-}
+
 
 SynexisSlot *Synexis::findEmptySlot() const {
     for (auto &slot: slots) {
