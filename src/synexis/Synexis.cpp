@@ -29,14 +29,15 @@ Synexis::Synexis(const std::string &model_path, const llama_context_params &para
         auto slot = std::make_unique<SynexisSlot>();
         slot->id = i;
         slots.push_back(std::move(slot));
-    } {
-        mtmd_context_params mparams = mtmd_context_params_default();
-        mparams.use_gpu = true;
-        mparams.print_timings = true;
-        mparams.n_threads = 12;
-        mparams.verbosity = GGML_LOG_LEVEL_ERROR;
-        mtmd_context = (mtmd_init_from_file(R"(D:\models\qwen\mmproj-Qwen2.5-Omni-7B-Q8_0.gguf)", model, mparams));
     }
+    // {
+    //     mtmd_context_params mparams = mtmd_context_params_default();
+    //     mparams.use_gpu = true;
+    //     mparams.print_timings = true;
+    //     mparams.n_threads = 12;
+    //     mparams.verbosity = GGML_LOG_LEVEL_ERROR;
+    //     mtmd_context = (mtmd_init_from_file(R"(D:\models\qwen\mmproj-Qwen2.5-Omni-7B-Q8_0.gguf)", model, mparams));
+    // }
     batch = llama_batch_init(std::max(2048, n_slots), 0, 1);
 }
 
@@ -121,9 +122,7 @@ int Synexis::add_task(const std::string &prompt, const SamplingParams &sampling_
                                   true);
 
         tokenized.resize(n_tokens);
-        for (llama_token t: tokenized) {
-            printf("Token: %s\n", llama_vocab_get_text(vocab, t));
-        }
+
         TaskTokens tokens(std::move(tokenized));
         slot->tokens = std::move(tokens);
         if (slot->sampler) {
@@ -172,23 +171,18 @@ void Synexis::run() {
     }
 }
 
-
 void Synexis::updateLoop() {
-    // check if all slots are idle
-    {
-        bool all_idle = true;
-        for (auto &slot: slots) {
-            if (!slot->idle()) {
-                all_idle = false;
-                break;
-            }
-        }
-        if (all_idle) {
-            return;
+    bool all_idle = true;
+    for (auto &slot: slots) {
+        if (!slot->idle()) {
+            all_idle = false;
+            break;
         }
     }
+    if (all_idle) {
+        return;
+    }
 
-    // apply context-shift if needed
     for (auto &slot: slots) {
         if (!slot->idle() && slot->n_past + 1 >= 8096) {
             if (mtmd_context) {
@@ -204,81 +198,52 @@ void Synexis::updateLoop() {
             llama_memory_seq_rm(llama_get_memory(ctx), slot->id, n_keep, n_keep + n_discard);
             llama_memory_seq_add(llama_get_memory(ctx), slot->id, n_keep + n_discard, slot->n_past, -n_discard);
 
-            // update cache tokens
-            {
-                auto new_tokens = slot->cacheTokens.getTokens();
-                for (size_t i = n_keep + n_discard; i < new_tokens.size(); i++) {
-                    new_tokens[i - n_discard] = new_tokens[i];
-                }
-                new_tokens.resize(new_tokens.size() - n_discard);
-                slot->cacheTokens.clear();
-                slot->cacheTokens.insert(new_tokens);
-            }
-
+            slot->cacheTokens.shiftTokens(n_keep, n_discard);
             slot->n_past -= n_discard;
             slot->truncated = true;
         }
     }
 
-    // start populating the batch for this iteration
     clear_batch(batch);
 
-    // track if given slot can be batched with slots already in the batch
+    std::vector<SynexisSlot *> compatible_slots;
+    compatible_slots.reserve(slots.size());
+
     SynexisSlot *slot_batched = nullptr;
-
-    // first, add sampled tokens from any ongoing sequences
-    for (auto &slot: slots) {
-        if (slot->state != SLOT_STATE_GENERATING) {
-            continue;
-        }
-
-        // check if we can batch this slot with the previous one
-        if (!slot_batched) {
-            slot_batched = slot.get();
-        } else if (!slot_batched->canBeBatchedWith(slot.get())) {
-            continue;
-        }
-
-        slot->i_batch = batch.n_tokens;
-        batch_add(batch, slot->sampled, slot->n_past, {slot->id}, true);
-        slot->n_past += 1;
-        slot->cacheTokens.add(slot->sampled);
-    }
-
-    // process in chunks
     int32_t n_batch = llama_n_batch(ctx);
     int32_t n_ubatch = llama_n_ubatch(ctx);
 
-    // next, batch any pending prompts without exceeding n_batch
     for (auto &slot: slots) {
-        // check if we can batch this slot with the previous one
-        if (!slot->idle()) {
-            if (!slot_batched) {
-                slot_batched = slot.get();
-            } else if (!slot_batched->canBeBatchedWith(slot.get())) {
-                continue;
-            }
-        }
+        if (slot->idle()) continue;
 
-        // this slot still has a prompt to be processed
+        if (!slot_batched) {
+            slot_batched = slot.get();
+            compatible_slots.push_back(slot.get());
+        } else if (slot_batched->canBeBatchedWith(slot.get())) {
+            compatible_slots.push_back(slot.get());
+        }
+    }
+
+    for (auto slot: compatible_slots) {
+        if (slot->state == SLOT_STATE_GENERATING) {
+            slot->i_batch = batch.n_tokens;
+            batch_add(batch, slot->sampled, slot->n_past++, {slot->id}, true);
+            slot->cacheTokens.add(slot->sampled);
+        }
+    }
+
+    for (auto slot: compatible_slots) {
         if (slot->state == SLOT_STATE_PROCESSING_PROMPT || slot->state == SLOT_STATE_STARTED) {
             if (slot->state == SLOT_STATE_STARTED) {
                 slot->n_past = 0;
                 slot->state = SLOT_STATE_PROCESSING_PROMPT;
 
-                // empty prompt check
                 if (slot->promptSize() == 0) {
                     slot->reset();
                     continue;
                 }
 
-                // check if prompt is too large
-                if (slot->promptSize() > n_ubatch) {
-                    slot->reset();
-                    continue;
-                }
-
-                if (slot->promptSize() > 8096) {
+                if (slot->promptSize() > n_ubatch || slot->promptSize() > 8096) {
                     slot->reset();
                     continue;
                 }
@@ -286,21 +251,17 @@ void Synexis::updateLoop() {
                 slot->n_prompt_tokens_processed = 0;
             }
 
-            // cannot fit the prompt in the current batch - will try next iter
             if (batch.n_tokens + (slot->promptSize() - slot->n_past) > n_batch) {
                 continue;
             }
 
-            // keep only the common part
             if (!llama_memory_seq_rm(llama_get_memory(ctx), slot->id, slot->n_past, -1)) {
                 llama_memory_seq_rm(llama_get_memory(ctx), slot->id, -1, -1);
                 slot->n_past = 0;
             }
 
-            // remove the non-common part from the cache
             slot->cacheTokens.keepFirst(slot->n_past);
 
-            // check if we should process the image
             if (slot->n_past < slot->promptSize() && slot->tokens.getTokens()[slot->n_past] == LLAMA_TOKEN_NULL) {
                 int32_t new_n_past;
                 int32_t res = slot->tokens.process_chunk(ctx, mtmd_context, slot->n_past, slot->id, new_n_past);
@@ -311,48 +272,39 @@ void Synexis::updateLoop() {
                     continue;
                 }
 
-                // add the image chunk to cache
-                {
-                    const auto &chunk = slot->tokens.find_chunk(slot->n_past);
-                    slot->cacheTokens.parseMtmdChunk(chunk.get());
-                }
+                const auto &chunk = slot->tokens.find_chunk(slot->n_past);
+                slot->cacheTokens.parseMtmdChunk(chunk.get());
 
                 slot->n_past += n_pos;
                 slot->n_prompt_tokens_processed += n_pos;
             }
 
-            // add prompt tokens for processing in the current batch
             while (slot->n_past < slot->promptSize() && batch.n_tokens < n_batch) {
                 llama_token cur_tok = slot->tokens.getTokens()[slot->n_past];
                 if (cur_tok == LLAMA_TOKEN_NULL) {
                     break;
                 }
 
-                const bool need_embd = false;
-                batch_add(batch, cur_tok, slot->n_past, {slot->id}, need_embd);
+                batch_add(batch, cur_tok, slot->n_past, {slot->id}, false);
                 slot->cacheTokens.add(cur_tok);
 
                 slot->n_prompt_tokens_processed++;
                 slot->n_past++;
             }
 
-            // entire prompt has been processed
             if (slot->n_past == slot->promptSize()) {
                 slot->state = SLOT_STATE_DONE_PROMPT;
-
                 slot->sampler->reset();
 
-                // Process all prompt tokens through sampler system
+                const auto &tokens = slot->tokens.getTokens();
                 for (int i = 0; i < slot->promptSize(); ++i) {
-                    llama_token id = slot->tokens.getTokens()[i];
+                    llama_token id = tokens[i];
                     if (id != LLAMA_TOKEN_NULL) {
                         slot->sampler->accept(id, false);
                     }
                 }
 
-                // extract the logits only for the last token
                 batch.logits[batch.n_tokens - 1] = true;
-
                 slot->n_decoded = 0;
                 slot->i_batch = batch.n_tokens - 1;
             }
@@ -366,10 +318,8 @@ void Synexis::updateLoop() {
     if (batch.n_tokens == 0) {
         return;
     }
-    llama_set_embeddings(ctx, false);
-    int32_t i_next = 0;
 
-    // process the created batch of tokens
+    int32_t i_next = 0;
     for (int32_t i = 0; i < batch.n_tokens; i = i_next) {
         const int32_t n_tokens = std::min(n_batch, batch.n_tokens - i);
 
@@ -386,25 +336,19 @@ void Synexis::updateLoop() {
         const int ret = llama_decode(ctx, batch_view);
 
         if (ret != 0) {
-            std::string err;
             if (n_batch == 1 && ret == 1) {
-                err = "Context size has been exceeded.";
+                for (auto &slot: slots) {
+                    slot->reset();
+                }
+                break;
             }
-            if (ret == -1) {
-                err = "Invalid input batch.";
-            }
-            if (ret < -1) {
-                err = "Compute error.";
-            }
-
-            if (!err.empty()) {
+            if (ret == -1 || ret < -1) {
                 for (auto &slot: slots) {
                     slot->reset();
                 }
                 break;
             }
 
-            // retry with half the batch size
             n_batch /= 2;
             if (n_batch == 0) {
                 break;
@@ -412,10 +356,7 @@ void Synexis::updateLoop() {
             continue;
         }
 
-        // move the head of the batch forward
         i_next = i + n_tokens;
-
-        // on successful decode, restore the original batch size
         n_batch = llama_n_batch(ctx);
 
         for (auto &slot: slots) {
@@ -438,11 +379,9 @@ void Synexis::updateLoop() {
 
             auto vocab = llama_model_get_vocab(model);
             slot->result += tokenToPiece(id, false);
-            std::cout << "Generated: " << slot->result << std::endl;
-
+            std::cout << "Generated for slot " << slot->id << ": " << slot->result<<std::endl;
             if (!slot->processToken(slot.get(), vocab, id)) {
                 slot->release();
-                std::cout << "Final result: " << slot->result << std::endl;
                 continue;
             }
 

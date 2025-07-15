@@ -11,6 +11,24 @@ void TaskTokens::insert(std::vector<llama_token> &tokens) {
     this->tokens.insert(this->tokens.end(), tokens.begin(), tokens.end());
 }
 
+void TaskTokens::shiftTokens(int n_keep, int n_discard) {
+    if (n_discard <= 0 || n_keep < 0) {
+        return;
+    }
+
+    if (tokens.size() <= n_keep + n_discard) {
+        return;
+    }
+
+    const size_t src_start = n_keep + n_discard;
+    const size_t dest_start = n_keep;
+    const size_t copy_count = tokens.size() - src_start;
+
+    std::memmove(&tokens[dest_start], &tokens[src_start], copy_count * sizeof(llama_token));
+
+    tokens.resize(tokens.size() - n_discard);
+}
+
 void TaskTokens::parseMtmdChunk(const mtmd_input_chunk *chunk) noexcept {
     auto type = mtmd_input_chunk_get_type(chunk);
     if (type == MTMD_INPUT_CHUNK_TYPE_IMAGE || type == MTMD_INPUT_CHUNK_TYPE_AUDIO) {

@@ -34,6 +34,8 @@ public:
 
     void TaskTokens::insert(std::vector<llama_token> &tokens);
 
+    void shiftTokens(int n_keep, int n_discard);
+
     TaskTokens(TaskTokens &&) = default;
 
     TaskTokens &operator=(TaskTokens&&) = default;
