@@ -1,0 +1,27 @@
+#pragma once
+
+enum SamplerType {
+    SAMPLER_TYPE_DRY,
+    SAMPLER_TYPE_TOP_K,
+    SAMPLER_TYPE_TOP_P,
+    SAMPLER_TYPE_TOP_N_SIGMA,
+    SAMPLER_TYPE_MIN_P,
+    SAMPLER_TYPE_XTC,
+    SAMPLER_TYPE_TYPICAL_P,
+    SAMPLER_TYPE_TEMPERATURE,
+    SAMPLER_TYPE_INFILL,
+    SAMPLER_TYPE_PENALTIES
+};
+
+enum GrammarTriggerType {
+    GRAMMAR_TRIGGER_TYPE_WORD,
+    GRAMMAR_TRIGGER_TYPE_PATTERN,
+    GRAMMAR_TRIGGER_TYPE_PATTERN_FULL,
+    GRAMMAR_TRIGGER_TYPE_TOKEN
+};
+
+struct GrammarTrigger {
+    GrammarTriggerType type;
+    std::string value;
+    int32_t token;
+};
