@@ -13,12 +13,12 @@ Synexis::Synexis(const std::string &model_path, int n_slots) {
 Synexis::~Synexis() {
 }
 
-int Synexis::addTask(const std::string &prompt, const SamplingParams &sampling_params) {
-    return impl->addTask(prompt, sampling_params);
+std::future<std::string> Synexis::addTask(const std::string &prompt, const TaskParams &params) {
+    return impl->addTask(prompt, params);
 }
 
 std::string Synexis::get_result(int task_id) {
-    return impl->get_result(task_id);
+    return "";
 }
 
 void Synexis::run() const {

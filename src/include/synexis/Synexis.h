@@ -1,7 +1,8 @@
 #pragma once
+#include <future>
 #include <string>
 #include "sampler/StructParams.h"
-
+#include "TaskParams.h"
 class SynexisImpl;
 
 
@@ -12,7 +13,7 @@ public:
 
     ~Synexis();
 
-    int addTask(const std::string &prompt, const SamplingParams &sampling_params);
+    std::future<std::string> addTask(const std::string &prompt, const TaskParams &sampling_params);
 
     std::string get_result(int task_id);
 

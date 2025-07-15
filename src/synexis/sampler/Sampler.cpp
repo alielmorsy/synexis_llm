@@ -2,10 +2,9 @@
 #include <regex>
 #include <sstream>
 #include <stdexcept>
-#include <Sampler.h>
+#include "Sampler.h"
 
 #include <llama-cpp.h>
-
 
 
 SynexisSampler::SynexisSampler(llama_model *model, const SamplingParams &params)
@@ -124,7 +123,6 @@ void SynexisSampler::set_grammar(const std::string &grammar_str, bool lazy) {
         initialize_grammar_sampler();
     }
 }
-
 
 
 bool SynexisSampler::initialize_grammar_sampler() {
@@ -333,7 +331,6 @@ std::string SynexisSampler::joinStrings(const std::vector<std::string> &strings,
 
 
 void SynexisSampler::reset() {
-
     llama_sampler_reset(chain_sampler_);
     llama_sampler_reset(grammar_sampler_);
 }

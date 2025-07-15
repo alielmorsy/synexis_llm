@@ -58,6 +58,33 @@ const mtmd::input_chunk_ptr &TaskTokens::find_chunk(llama_pos pos) const {
     throw std::runtime_error("Chunk not found");
 }
 
+int32_t TaskTokens::process_chunk(llama_context *ctx, mtmd_context *mctx, llama_pos n_past, int32_t seq_id,
+                                  llama_pos &n_pos_out) {
+    auto &chunk = find_chunk(n_past);
+    const char *name = mtmd_input_chunk_get_type(chunk.get()) == MTMD_INPUT_CHUNK_TYPE_IMAGE
+                           ? "image"
+                           : "audio";
+    std::cout << "Processing Image" << std::endl;
+    int32_t n_batch = llama_n_batch(ctx);
+    int64_t t0 = ggml_time_ms();
+    llama_pos new_n_past = n_past;
+    int32_t result = mtmd_helper_eval_chunk_single(mctx, ctx,
+                                                   chunk.get(),
+                                                   n_past,
+                                                   seq_id,
+                                                   n_batch,
+                                                   true, // logits last
+                                                   &new_n_past);
+    std::printf("%s processed in %" PRId64 " ms\n", name, ggml_time_ms() - t0);
+    if (result != 0) {
+        std::printf("mtmd_helper_eval failed with status %d\n", result);
+        n_pos_out = n_past;
+        return result;
+    }
+    n_pos_out = new_n_past;
+    return 0;
+}
+
 
 void TaskTokens::keepFirst(size_t n) {
     GGML_ASSERT(n <= tokens.size());

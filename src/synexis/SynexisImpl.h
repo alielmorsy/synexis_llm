@@ -9,17 +9,15 @@
 #include <mutex>
 
 #include "SynexisSlot.h"
-
-struct SamplingParams;
+#include "synexis/TaskParams.h"
+#include "Request.h"
+#include <future>
 
 class SynexisImpl {
 public:
     ~SynexisImpl();
 
-    int addTask(const std::string &prompt, const SamplingParams &sampling_params);
-
-    std::string get_result(int task_id);
-
+    std::future<std::string> addTask(const std::string &prompt, const TaskParams &params);
 
     void run();
 
@@ -29,20 +27,27 @@ public:
 
 private:
     void updateLoop();
+    void tokenizationLoop();
 
-    [[nodiscard]] SynexisSlot *findEmptySlot() const;
+    SynexisSlot *findEmptySlot();
 
-    std::string tokenToPiece(int32_t token, bool special);
+
+    std::string tokenToPiece(int32_t token, bool special) const;
 
     llama_model *model;
     llama_context *ctx;
     mtmd_context *mtmd_context = nullptr;
     std::vector<std::unique_ptr<SynexisSlot> > slots;
-    std::mutex mtx;
+    std::mutex slotLock;
     std::condition_variable cv;
     std::thread workerThread;
     std::atomic<bool> running{false};
     llama_batch batch;
+    
+    std::deque<std::unique_ptr<Request>> tokenization_queue;
+    std::mutex tokenization_queue_mutex;
+    std::condition_variable tokenization_queue_cv;
+    std::thread tokenization_thread;
 };
 
 

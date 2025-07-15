@@ -1,3 +1,6 @@
 [submodule "src/vendor/llama.cpp"]
 	path = src/vendor/llama.cpp
 	url = https://github.com/alielmorsy/llama.cpp
+[submodule "src/vendor/pybind11"]
+	path = src/vendor/pybind11
+	url = https://github.com/pybind/pybind11.git
