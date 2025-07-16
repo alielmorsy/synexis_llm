@@ -21,6 +21,8 @@ public:
 
     void run();
 
+    std::string getTemplate();
+
     SynexisImpl(const std::string &model_path, const llama_context_params &params, int n_slots);
 
     void stop();

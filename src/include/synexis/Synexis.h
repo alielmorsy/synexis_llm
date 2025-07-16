@@ -22,6 +22,8 @@ public:
 
     void stop() const;
 
+    std::string getTemplate() const;
+
 private:
     SynexisImpl *impl;
 };

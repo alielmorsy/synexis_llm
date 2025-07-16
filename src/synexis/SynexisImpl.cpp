@@ -2,16 +2,21 @@
 
 #include <algorithm>
 #include <cassert>
-#include <iostream>
 #include <stdexcept>
 
 #include "batch_helper.h"
-#include "mtmd-helper.h"
 #include "SynexisSlot.h"
 #include "synexis/TaskParams.h"
 #include "TaskTokens.h"
 
 #define TOKEN_PIECE_MAX_SIZE 64
+#define CHATML_TEMPLATE_SRC \
+"{%- for message in messages -%}\n" \
+"  {{- '<|im_start|>' + message.role + '\n' + message.content + '<|im_end|>\n' -}}\n" \
+"{%- endfor -%}\n" \
+"{%- if add_generation_prompt -%}\n" \
+"  {{- '<|im_start|>assistant\n' -}}\n" \
+"{%- endif -%}"
 
 SynexisImpl::SynexisImpl(const std::string &model_path, const llama_context_params &params, int n_slots) {
     ggml_backend_load_all();
@@ -364,6 +369,18 @@ SynexisSlot *SynexisImpl::findEmptySlot() {
         }
     }
     return nullptr;
+}
+
+
+std::string SynexisImpl::getTemplate() {
+    const auto *modelTemplate = llama_model_chat_template(model, nullptr);
+    std::string templateSource;
+    if (modelTemplate) {
+        templateSource = modelTemplate;
+    } else {
+        templateSource = CHATML_TEMPLATE_SRC;
+    }
+    return templateSource;
 }
 
 

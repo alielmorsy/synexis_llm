@@ -28,3 +28,7 @@ void Synexis::run() const {
 void Synexis::stop() const {
     impl->stop();
 }
+
+std::string Synexis::getTemplate() const {
+    return impl->getTemplate();
+}

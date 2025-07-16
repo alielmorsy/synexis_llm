@@ -42,6 +42,10 @@ std::shared_ptr<StreamIterator> stream_task(Synexis &self, TaskParams &params) {
     return iterator;
 }
 
+std::string get_template(Synexis &self) {
+    return self.getTemplate();
+}
+
 PYBIND11_MODULE(synexis_python, m) {
     m.doc() = "Python bindings for the Synexis C++ library";
 
@@ -91,5 +95,6 @@ PYBIND11_MODULE(synexis_python, m) {
             }, py::arg("params"), "Adds a task for synchronous (non-streaming) generation.")
 
             .def("complete_stream", &stream_task, py::arg("params"),
-                 "Adds a task for streaming generation and returns an iterator.");
+                 "Adds a task for streaming generation and returns an iterator.")
+            .def("get_template", &get_template, "Get the model template or fallback to the default one");
 }
