@@ -6,12 +6,11 @@
 #include <condition_variable>
 #include <future>
 #include <iostream>
-#include <thread>
 #include <memory>
 
-#include "../include/synexis/Synexis.h"
-#include "../include/synexis/TaskParams.h"
-#include "../include/synexis/sampler/StructParams.h"
+#include <synexis/Synexis.h>
+#include <synexis/TaskParams.h>
+#include <synexis/sampler/StructParams.h>
 
 namespace py = pybind11;
 
@@ -40,7 +39,6 @@ public:
         }
 
 
-
         std::string token = std::move(queue.front());
         queue.pop();
         return token;
@@ -51,8 +49,7 @@ public:
     }
 
     // Thread-safe push method - can be called from any thread
-    void push(const std::string &token) {
-        {
+    void push(const std::string &token) { {
             std::lock_guard<std::mutex> lock(q_mutex);
             if (finished) return; // Don't push after finishing
             queue.push(token);
@@ -61,8 +58,7 @@ public:
     }
 
     // Signals the end of the stream - can be called from any thread
-    void end() {
-        {
+    void end() { {
             std::lock_guard<std::mutex> lock(q_mutex);
             finished = true;
         }
@@ -70,8 +66,7 @@ public:
     }
 
     // Signal an error occurred - can be called from any thread
-    void set_error() {
-        {
+    void set_error() { {
             std::lock_guard<std::mutex> lock(q_mutex);
             error_occurred = true;
         }
@@ -89,7 +84,7 @@ private:
 PYBIND11_MODULE(synexis_python, m) {
     m.doc() = "Python bindings for the Synexis C++ library";
 
-    py::class_<StreamIterator, std::shared_ptr<StreamIterator>>(m, "StreamIterator")
+    py::class_<StreamIterator, std::shared_ptr<StreamIterator> >(m, "StreamIterator")
             .def("__iter__", [](std::shared_ptr<StreamIterator> it) -> std::shared_ptr<StreamIterator> { return it; })
             .def("__next__", &StreamIterator::next);
 
@@ -157,8 +152,7 @@ PYBIND11_MODULE(synexis_python, m) {
 
                     // Don't wait for the future here - let streaming happen asynchronously
                     // The callbacks will handle the completion
-
-                } catch (const std::exception& e) {
+                } catch (const std::exception &e) {
                     iterator->set_error();
                 }
 
