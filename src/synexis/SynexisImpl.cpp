@@ -17,6 +17,7 @@ SynexisImpl::SynexisImpl(const std::string &model_path, const llama_context_para
     ggml_backend_load_all();
     auto modelParams = llama_model_default_params();
     modelParams.use_mmap = true;
+    modelParams.n_gpu_layers = 999;
     model = llama_model_load_from_file(model_path.c_str(), modelParams);
     if (model == nullptr) {
         throw std::runtime_error("Failed to load model");
@@ -49,9 +50,8 @@ std::future<std::string> SynexisImpl::addTask(const std::string &prompt, const T
     auto request = std::make_unique<Request>();
     request->prompt = prompt;
     request->params = params;
-    std::future<std::string> future = request->promise.get_future();
-    {
-        std::lock_guard<std::mutex> lock(tokenization_queue_mutex);
+    std::future<std::string> future = request->promise.get_future(); {
+        std::lock_guard lock(tokenization_queue_mutex);
         tokenization_queue.push_back(std::move(request));
     }
     tokenization_queue_cv.notify_one();
@@ -91,7 +91,7 @@ void SynexisImpl::stop() {
 void SynexisImpl::tokenizationLoop() {
     while (running) {
         std::unique_ptr<Request> request; {
-            std::unique_lock<std::mutex> lock(tokenization_queue_mutex);
+            std::unique_lock lock(tokenization_queue_mutex);
             tokenization_queue_cv.wait(lock, [this] { return !tokenization_queue.empty() || !running; });
             if (!running) break;
             request = std::move(tokenization_queue.front());
@@ -218,10 +218,10 @@ void SynexisImpl::updateLoop() {
 
                 slot->cacheTokens.keepFirst(slot->n_past);
 
-            if (slot->n_past < slot->promptSize() && slot->tokens.getTokens()[slot->n_past] == LLAMA_TOKEN_NULL) {
-                int32_t new_n_past;
-                int32_t res = slot->tokens.process_chunk(ctx, mtmd_context, slot->n_past, slot->id, new_n_past);
-                int32_t n_pos = new_n_past - slot->n_past;
+                if (slot->n_past < slot->promptSize() && slot->tokens.getTokens()[slot->n_past] == LLAMA_TOKEN_NULL) {
+                    int32_t new_n_past;
+                    int32_t res = slot->tokens.process_chunk(ctx, mtmd_context, slot->n_past, slot->id, new_n_past);
+                    int32_t n_pos = new_n_past - slot->n_past;
 
                     if (res != 0) {
                         slot->reset();
@@ -316,7 +316,7 @@ void SynexisImpl::updateLoop() {
             n_batch = llama_n_batch(ctx);
 
             for (auto &slot: slots) {
-                if (slot->i_batch < (int) i || slot->i_batch >= (int) (i + n_tokens)) {
+                if (slot->i_batch < i || slot->i_batch >= i + n_tokens) {
                     continue;
                 }
 

@@ -6,6 +6,12 @@
 #include "Enums.h"
 
 struct SamplingParams {
+    SamplingParams(float temp, int32_t top_k, float top_p, float min_p): temp(temp), top_k(top_k), top_p(top_p),
+                                                                         min_p(min_p) {
+    }
+    SamplingParams() {
+
+    }
     uint32_t seed = 1900; // Default seed
 
     // Sampling parameters
