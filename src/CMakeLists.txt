@@ -13,3 +13,7 @@ add_executable(synexis_app main.cpp)
 target_link_libraries(synexis_app PRIVATE mtmd)
 target_link_libraries(synexis_app PRIVATE syneaxis)
 
+
+set_target_properties(synexis_app PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)

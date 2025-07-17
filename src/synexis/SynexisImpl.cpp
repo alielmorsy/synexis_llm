@@ -8,6 +8,8 @@
 #include "SynexisSlot.h"
 #include "synexis/TaskParams.h"
 #include "TaskTokens.h"
+#include "utils.h"
+#include "synexis/SynexisArguments.h"
 
 #define TOKEN_PIECE_MAX_SIZE 64
 #define CHATML_TEMPLATE_SRC \
@@ -18,35 +20,40 @@
 "  {{- '<|im_start|>assistant\n' -}}\n" \
 "{%- endif -%}"
 
-SynexisImpl::SynexisImpl(const std::string &model_path, const llama_context_params &params, int n_slots) {
+SynexisImpl::SynexisImpl(const SynexisArguments &args): params(args) {
     ggml_backend_load_all();
     auto modelParams = llama_model_default_params();
-    modelParams.use_mmap = true;
+    modelParams.use_mmap = args.use_mmap;
     modelParams.n_gpu_layers = 999;
-    model = llama_model_load_from_file(model_path.c_str(), modelParams);
+    model = llama_model_load_from_file(params.modelPath.c_str(), modelParams);
     if (model == nullptr) {
         throw std::runtime_error("Failed to load model");
     }
-    ctx = llama_init_from_model(model, params);
+
+    auto contextParams = llama_context_default_params();
+    contextParams.n_ctx = params.n_ctx;
+    contextParams.n_batch = params.n_batch;
+    contextParams.n_threads = params.numberOfThreads;
+    ctx = llama_init_from_model(model, contextParams);
 
     if (ctx == nullptr) {
         throw std::runtime_error("Failed to create context");
     }
 
-    slots.reserve(n_slots);
-    for (int i = 0; i < n_slots; ++i) {
+    slots.reserve(args.n_slots);
+    for (int i = 0; i < args.n_slots; ++i) {
         auto slot = std::make_unique<SynexisSlot>();
         slot->id = i;
         slots.push_back(std::move(slot));
     }
-    // {
-    mtmd_context_params mparams = mtmd_context_params_default();
-    //     mparams.use_gpu = true;
-    //     mparams.print_timings = true;
-    //     mparams.n_threads = 12;
-    //     mparams.verbosity = GGML_LOG_LEVEL_ERROR;
-    //     mtmd_context = (mtmd_init_from_file(R"(D:\models\qwen\mmproj-Qwen2.5-Omni-7B-Q8_0.gguf)", model, mparams));
-    // }
+    if (!args.modelProjectorPath.empty()) {
+        mtmd_context_params mparams = mtmd_context_params_default();
+        mparams.use_gpu = true;
+        mparams.n_threads = params.numberOfThreads;
+        mparams.verbosity = GGML_LOG_LEVEL_ERROR;
+        mtmd_context = mtmd_init_from_file(args.modelProjectorPath.c_str(), model, mparams);
+    }
+
     batch = llama_batch_init(params.n_batch, 0, 1);
 }
 
@@ -94,6 +101,7 @@ void SynexisImpl::stop() {
 }
 
 void SynexisImpl::tokenizationLoop() {
+    mtmd_default_marker();
     while (running) {
         std::unique_ptr<Request> request; {
             std::unique_lock lock(tokenization_queue_mutex);
@@ -104,6 +112,7 @@ void SynexisImpl::tokenizationLoop() {
         }
 
         SynexisSlot *slot = nullptr;
+
         while (running && slot == nullptr) {
             slot = findEmptySlot();
             if (slot == nullptr) {
@@ -112,17 +121,45 @@ void SynexisImpl::tokenizationLoop() {
         }
         if (!running) break;
 
-        // Tokenize the prompt
-        int n_tokens = request->prompt.length();
-        auto vocab = llama_model_get_vocab(model);
-        std::vector<llama_token> tokenized(n_tokens);
-        n_tokens = llama_tokenize(vocab, request->prompt.data(), request->prompt.length(), tokenized.data(),
-                                  tokenized.size(), false,
-                                  true);
+        //In case we have mtmd context we would have to parse media files
+        if (mtmd_context != nullptr) {
+            mtmd::bitmaps bitmaps;
+            for (auto &[data, size]: request->params.media) {
+                mtmd::bitmap bmp(mtmd_helper_bitmap_init_from_buf(mtmd_context, data, size));
+                // calculate bitmap hash (for KV caching)
+                std::string hash = fnv_hash(bmp.data(), bmp.n_bytes());
+                bmp.set_id(hash.c_str());
+                bitmaps.entries.push_back(std::move(bmp));
+            }
+            mtmd_input_text inp_txt = {
+                request->prompt.c_str(),
+                /* add_special */ true,
+                /* parse_special */ true,
+            };
+            mtmd::input_chunks chunks(mtmd_input_chunks_init());
+            auto bitmaps_c_ptr = bitmaps.c_ptr();
+            int32_t tokenized = mtmd_tokenize(mtmd_context,
+                                              chunks.ptr.get(),
+                                              &inp_txt,
+                                              bitmaps_c_ptr.data(),
+                                              bitmaps_c_ptr.size());
+            if (tokenized != 0) {
+                throw std::runtime_error("Failed to tokenize prompt");
+            }
+            slot->tokens = TaskTokens(chunks);
+        } else {
+            size_t n_tokens = request->prompt.length();
+            auto vocab = llama_model_get_vocab(model);
+            std::vector<llama_token> tokenized(n_tokens);
+            n_tokens = llama_tokenize(vocab, request->prompt.data(), request->prompt.length(), tokenized.data(),
+                                      tokenized.size(), false,
+                                      true);
+            tokenized.resize(n_tokens);
 
-        tokenized.resize(n_tokens);
+            slot->tokens = TaskTokens(std::move(tokenized));
+        }
 
-        slot->tokens = TaskTokens(std::move(tokenized));
+
         delete slot->sampler;
         slot->sampler = new SynexisSampler(model, request->params.samplerParams);
         slot->request = std::move(request);

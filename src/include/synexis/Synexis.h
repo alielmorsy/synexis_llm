@@ -1,14 +1,15 @@
 #pragma once
 #include <future>
 #include <string>
-#include "sampler/StructParams.h"
+
+#include "SynexisArguments.h"
 #include "TaskParams.h"
 class SynexisImpl;
 
 
 class Synexis {
 public:
-    Synexis(const std::string &model_path, int n_slots);
+    Synexis(SynexisArguments args);
 
 
     ~Synexis();
@@ -22,7 +23,7 @@ public:
 
     void stop() const;
 
-    std::string getTemplate() const;
+    [[nodiscard]] std::string getTemplate() const;
 
 private:
     SynexisImpl *impl;

@@ -13,9 +13,13 @@
 #include "Request.h"
 #include <future>
 
+#include "synexis/SynexisArguments.h"
+
 class SynexisImpl {
 public:
     ~SynexisImpl();
+
+    SynexisImpl(const SynexisArguments &args);
 
     std::future<std::string> addTask(const std::string &prompt, const TaskParams &params);
 
@@ -50,6 +54,7 @@ private:
     std::mutex tokenization_queue_mutex;
     std::condition_variable tokenization_queue_cv;
     std::thread tokenization_thread;
+    SynexisArguments params;
 };
 
 

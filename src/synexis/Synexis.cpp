@@ -3,15 +3,10 @@
 #include "SynexisImpl.h"
 #include <llama.h>
 
-Synexis::Synexis(const std::string &model_path, int n_slots) {
-    llama_context_params lparams = llama_context_default_params();
-    lparams.n_ctx = 2048;
-    lparams.n_threads = 12;
-    impl = new SynexisImpl(model_path, lparams, n_slots);
+Synexis::Synexis(SynexisArguments args) {
+    impl = new SynexisImpl(args);
 }
 
-Synexis::~Synexis() {
-}
 
 std::future<std::string> Synexis::addTask(const std::string &prompt, const TaskParams &params) {
     return impl->addTask(prompt, params);
@@ -31,4 +26,9 @@ void Synexis::stop() const {
 
 std::string Synexis::getTemplate() const {
     return impl->getTemplate();
+}
+
+
+Synexis::~Synexis() {
+    delete impl;
 }
