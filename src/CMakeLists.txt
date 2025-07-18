@@ -9,7 +9,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(SYNEAXIS_VERSION 0.0.1)
 
-add_subdirectory(vendor/llama.cpp)
+add_subdirectory(vendor/llama.cpp EXCLUDE_FROM_ALL) #To avoid the install
 add_subdirectory(vendor/pybind11)
 add_subdirectory(synexis)
 add_subdirectory(python-wrapper)
