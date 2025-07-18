@@ -24,7 +24,7 @@ SynexisImpl::SynexisImpl(const SynexisArguments &args): params(args) {
     ggml_backend_load_all();
     auto modelParams = llama_model_default_params();
     modelParams.use_mmap = args.use_mmap;
-    modelParams.n_gpu_layers = 999;
+    modelParams.n_gpu_layers = args.numberOfGpuLayers;
     model = llama_model_load_from_file(params.modelPath.c_str(), modelParams);
     if (model == nullptr) {
         throw std::runtime_error("Failed to load model");
@@ -48,7 +48,7 @@ SynexisImpl::SynexisImpl(const SynexisArguments &args): params(args) {
     }
     if (!args.modelProjectorPath.empty()) {
         mtmd_context_params mparams = mtmd_context_params_default();
-        mparams.use_gpu = true;
+        mparams.use_gpu = args.numberOfGpuLayers > 0;
         mparams.n_threads = params.numberOfThreads;
         mparams.verbosity = GGML_LOG_LEVEL_ERROR;
         mtmd_context = mtmd_init_from_file(args.modelProjectorPath.c_str(), model, mparams);
