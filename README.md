@@ -1,6 +1,9 @@
 # Synexis
 
-Yet another binding for llama.cpp. But this one is kinda different because it supports continous 
+Yet another binding for llama.cpp. But this one is kinda different because it supports continuous batching with a slots
+system mechanism (adapted from llama-server).
+
+Currently, it supports only text completion
 
 ## Build
 
@@ -13,9 +16,12 @@ pip install .
 ## Usage
 
 ```python
-import synexis
-
-synexis.init_backend()
-print(synexis.get_system_info())
-synexis.free_backend()
+from synexis_llm import SynexisLLM
+llm = SynexisLLM(model_path)
+stream= llm.chat.completions.create([
+    {"role": "system", "content": "You are good assistant"},
+    {"role": "user", "content": "Hello World!"}
+],stream=True)
+for token in stream:
+    print(token, end='', flush=True)
 ```
