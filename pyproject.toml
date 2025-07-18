@@ -12,6 +12,9 @@ description = "A Python wrapper for llama.cpp"
 authors = [{ name = "Ali Elmorsy", email = "ali.elmorsy@gmail.com" }]
 license = { text = "MIT" }
 readme = "README.md"
+dependencies = [
+    "jinja2"
+]
 
 [tool.scikit-build]
 cmake.source-dir = "src"
