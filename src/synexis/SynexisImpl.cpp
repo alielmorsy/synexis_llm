@@ -33,7 +33,7 @@ SynexisImpl::SynexisImpl(const SynexisArguments &args): params(args) {
     auto contextParams = llama_context_default_params();
     contextParams.n_ctx = params.n_ctx;
     contextParams.n_batch = params.n_batch;
-    contextParams.n_threads = params.numberOfThreads;
+    contextParams.n_threads_batch = params.numberOfThreads;
     ctx = llama_init_from_model(model, contextParams);
 
     if (ctx == nullptr) {
@@ -435,4 +435,17 @@ SynexisImpl::~SynexisImpl() {
     llama_model_free(model);
     mtmd_free(mtmd_context);
     llama_backend_free();
+}
+
+std::string SynexisImpl::getToken(std::string &str) {
+    auto vocab = llama_model_get_vocab(model);
+    llama_token token;
+    if (str == "BOS") {
+        token = llama_vocab_bos(vocab);
+    } else if (str == "EOS") {
+        token = llama_vocab_eos(vocab);
+    } else {
+        GGML_ABORT("Unknown requested token");
+    }
+    return tokenToPiece(token, true);
 }

@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.13)
 project(synexis C CXX)
 
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel." FORCE)
+endif()
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(SYNEAXIS_VERSION 0.0.1)
@@ -12,10 +16,10 @@ add_subdirectory(python-wrapper)
 
 set(SYNEAXIS_PYPROJECT_BUILD OFF CACHE BOOL "Enable when building via pyproject.toml")
 
+message(STATUS "when generator: ${CMAKE_GENERATOR}")
+message(STATUS "CMake build type: ${CMAKE_BUILD_TYPE}")
 
-set_target_properties(synexis_app PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
-)
+
 function(llama_cpp_python_install_target target)
     if (NOT TARGET ${target})
         message("No Target ${target}")
@@ -24,19 +28,9 @@ function(llama_cpp_python_install_target target)
 
     install(
             TARGETS ${target}
-            LIBRARY DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/llama_cpp/lib
-            RUNTIME DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/llama_cpp/lib
-            ARCHIVE DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/llama_cpp/lib
-            FRAMEWORK DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/llama_cpp/lib
-            RESOURCE DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/llama_cpp/lib
-    )
-    install(
-            TARGETS ${target}
-            LIBRARY DESTINATION ${SKBUILD_PLATLIB_DIR}/llama_cpp/lib
-            RUNTIME DESTINATION ${SKBUILD_PLATLIB_DIR}/llama_cpp/lib
-            ARCHIVE DESTINATION ${SKBUILD_PLATLIB_DIR}/llama_cpp/lib
-            FRAMEWORK DESTINATION ${SKBUILD_PLATLIB_DIR}/llama_cpp/lib
-            RESOURCE DESTINATION ${SKBUILD_PLATLIB_DIR}/llama_cpp/lib
+            LIBRARY DESTINATION "synexis_llm/lib"
+            RUNTIME DESTINATION "synexis_llm/lib"
+            ARCHIVE DESTINATION "synexis_llm/lib"
     )
     set_target_properties(${target} PROPERTIES
             INSTALL_RPATH "$ORIGIN"
@@ -60,6 +54,7 @@ endfunction()
 if (SYNEAXIS_PYPROJECT_BUILD)
     llama_cpp_python_install_target(llama)
     llama_cpp_python_install_target(ggml)
+    llama_cpp_python_install_target(mtmd)
 
     llama_cpp_python_install_target(ggml-base)
 
@@ -75,6 +70,5 @@ if (SYNEAXIS_PYPROJECT_BUILD)
     llama_cpp_python_install_target(ggml-rpc)
     llama_cpp_python_install_target(ggml-sycl)
     llama_cpp_python_install_target(ggml-vulkan)
-    llama_cpp_python_install_target(synexis_python)
 
 endif ()

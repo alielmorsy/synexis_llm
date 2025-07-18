@@ -1,0 +1,26 @@
+[build-system]
+requires = [
+    "scikit-build-core>=0.4.3",
+    "cmake"
+]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "synexis_llm"
+version = "0.0.1"
+description = "A Python wrapper for llama.cpp"
+authors = [{ name = "Ali Elmorsy", email = "ali.elmorsy@gmail.com" }]
+license = { text = "MIT" }
+readme = "README.md"
+
+[tool.scikit-build]
+cmake.source-dir = "src"
+cmake.args = [
+    "-DCMAKE_BUILD_TYPE=Release",
+    "-DSYNEAXIS_PYPROJECT_BUILD=ON",
+    "-DLLAMA_INSTALL=OFF",
+    "-DPYBIND11_INSTALL=OFF"
+]
+wheel.packages = ["synexis_llm"]
+sdist.include = ["src/**", "synexis/**"]
+sdist.exclude = ["src/build*/**",         "src/cmake-build*/**"]

@@ -28,6 +28,10 @@ std::string Synexis::getTemplate() const {
     return impl->getTemplate();
 }
 
+std::string Synexis::getToken(std::string str) const {
+    return impl->getToken(str);
+}
+
 
 Synexis::~Synexis() {
     delete impl;

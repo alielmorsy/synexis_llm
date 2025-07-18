@@ -25,6 +25,8 @@ public:
 
     [[nodiscard]] std::string getTemplate() const;
 
+    std::string getToken(std::string str) const;
+
 private:
     SynexisImpl *impl;
 };

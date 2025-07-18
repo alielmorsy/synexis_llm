@@ -19,6 +19,8 @@ class SynexisImpl {
 public:
     ~SynexisImpl();
 
+    std::string  getToken(std::string &str);
+
     SynexisImpl(const SynexisArguments &args);
 
     std::future<std::string> addTask(const std::string &prompt, const TaskParams &params);

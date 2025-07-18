@@ -1,5 +1,6 @@
 {
   "version": 4,
+  "defaultConfigurePreset": "release",
   "configurePresets": [
     {
       "name": "base",
@@ -12,7 +13,8 @@
         "GGML_CUDA": "ON",
         "CMAKE_CUDA_ARCHITECTURES": "native",
         "LLAMA_CURL": "OFF",
-        "GGML_CUDA_FORCE_CUBLAS": "ON"
+        "GGML_CUDA_FORCE_CUBLAS": "ON",
+        "SYNEAXIS_PYPROJECT_BUILD": "ON"
       }
     },
     {

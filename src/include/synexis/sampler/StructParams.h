@@ -6,8 +6,8 @@
 #include "Enums.h"
 
 struct SamplingParams {
-    SamplingParams(float temp, int32_t top_k, float top_p, float min_p): temp(temp), top_k(top_k), top_p(top_p),
-                                                                         min_p(min_p) {
+    SamplingParams(float temp, int32_t top_k, float top_p, float min_p,float penalty_repeat): temp(temp), top_k(top_k), top_p(top_p),
+                                                                         min_p(min_p),penalty_repeat(penalty_repeat) {
     }
     SamplingParams() {
 

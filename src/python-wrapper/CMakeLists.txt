@@ -1,5 +1,9 @@
+set(pybind11_PREFER_RELEASE ON)
 pybind11_add_module(synexis_python wrapper.cpp)
 target_link_libraries(synexis_python PRIVATE syneaxis)
-set_target_properties(synexis_python PROPERTIES
-        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+
+install(TARGETS synexis_python
+        LIBRARY DESTINATION synexis_llm
+        RUNTIME DESTINATION synexis_llm
+        ARCHIVE DESTINATION synexis_llm
 )

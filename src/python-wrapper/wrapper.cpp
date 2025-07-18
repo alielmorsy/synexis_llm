@@ -66,11 +66,12 @@ PYBIND11_MODULE(synexis_python, m) {
         SamplingParams defaults{};
 
         py::class_<SamplingParams>(m, "SamplingParams")
-                .def(py::init<float, int32_t, float, float>(),
+                .def(py::init<float, int32_t, float, float, float>(),
                      py::arg("temp") = defaults.temp,
                      py::arg("top_k") = defaults.top_k,
                      py::arg("top_p") = defaults.top_p,
-                     py::arg("min_p") = defaults.min_p)
+                     py::arg("min_p") = defaults.min_p,
+                     py::arg("penalty_repeat") = defaults.penalty_repeat)
                 .def_readwrite("temp", &SamplingParams::temp)
                 .def_readwrite("top_k", &SamplingParams::top_k)
                 .def_readwrite("top_p", &SamplingParams::top_p)
@@ -80,10 +81,10 @@ PYBIND11_MODULE(synexis_python, m) {
             .def(py::init<>())
             .def(py::init<std::string, SamplingParams>(),
                  py::arg("prompt"),
-                 py::arg("samplerParams") = SamplingParams())
+                 py::arg("sampling_params") = SamplingParams())
             .def_readwrite("prompt", &TaskParams::prompt)
-            .def_readwrite("samplerParams", &TaskParams::samplerParams)
-            .def_readwrite("maximumTokens", &TaskParams::maximumTokens)
+            .def_readwrite("sampling_params", &TaskParams::samplerParams)
+            .def_readwrite("maximum_tokens", &TaskParams::maximumTokens)
             .def("add_media", [](TaskParams &self, const py::bytes &media) {
                 std::string_view view = media;
                 self.addMedia(view);
@@ -110,5 +111,11 @@ PYBIND11_MODULE(synexis_python, m) {
 
             .def("complete_stream", &stream_task, py::arg("params"),
                  "Adds a task for streaming generation and returns an iterator.")
-            .def("get_template", &get_template, "Get the model template or fallback to the default one");
+            .def("get_template", &get_template, "Get the model template or fallback to the default one").
+            def("get_tokens", [](Synexis &self) {
+                py::dict d;
+                d["bos_token"] = self.getToken("BOS");
+                d["eos_token"] = self.getToken("EOS");
+                return d;
+            });
 }
