@@ -9,11 +9,72 @@ add_subdirectory(vendor/llama.cpp)
 add_subdirectory(vendor/pybind11)
 add_subdirectory(synexis)
 add_subdirectory(python-wrapper)
-add_executable(synexis_app main.cpp)
-target_link_libraries(synexis_app PRIVATE mtmd)
-target_link_libraries(synexis_app PRIVATE syneaxis)
+
+set(SYNEAXIS_PYPROJECT_BUILD OFF CACHE BOOL "Enable when building via pyproject.toml")
 
 
 set_target_properties(synexis_app PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
+function(llama_cpp_python_install_target target)
+    if (NOT TARGET ${target})
+        message("No Target ${target}")
+        return()
+    endif ()
+
+    install(
+            TARGETS ${target}
+            LIBRARY DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/llama_cpp/lib
+            RUNTIME DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/llama_cpp/lib
+            ARCHIVE DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/llama_cpp/lib
+            FRAMEWORK DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/llama_cpp/lib
+            RESOURCE DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/llama_cpp/lib
+    )
+    install(
+            TARGETS ${target}
+            LIBRARY DESTINATION ${SKBUILD_PLATLIB_DIR}/llama_cpp/lib
+            RUNTIME DESTINATION ${SKBUILD_PLATLIB_DIR}/llama_cpp/lib
+            ARCHIVE DESTINATION ${SKBUILD_PLATLIB_DIR}/llama_cpp/lib
+            FRAMEWORK DESTINATION ${SKBUILD_PLATLIB_DIR}/llama_cpp/lib
+            RESOURCE DESTINATION ${SKBUILD_PLATLIB_DIR}/llama_cpp/lib
+    )
+    set_target_properties(${target} PROPERTIES
+            INSTALL_RPATH "$ORIGIN"
+            BUILD_WITH_INSTALL_RPATH TRUE
+    )
+    if (UNIX)
+        if (APPLE)
+            set_target_properties(${target} PROPERTIES
+                    INSTALL_RPATH "@loader_path"
+                    BUILD_WITH_INSTALL_RPATH TRUE
+            )
+        else ()
+            set_target_properties(${target} PROPERTIES
+                    INSTALL_RPATH "$ORIGIN"
+                    BUILD_WITH_INSTALL_RPATH TRUE
+            )
+        endif ()
+    endif ()
+endfunction()
+
+if (SYNEAXIS_PYPROJECT_BUILD)
+    llama_cpp_python_install_target(llama)
+    llama_cpp_python_install_target(ggml)
+
+    llama_cpp_python_install_target(ggml-base)
+
+    llama_cpp_python_install_target(ggml-amx)
+    llama_cpp_python_install_target(ggml-blas)
+    llama_cpp_python_install_target(ggml-can)
+    llama_cpp_python_install_target(ggml-cpu)
+    llama_cpp_python_install_target(ggml-cuda)
+    llama_cpp_python_install_target(ggml-hip)
+    llama_cpp_python_install_target(ggml-kompute)
+    llama_cpp_python_install_target(ggml-metal)
+    llama_cpp_python_install_target(ggml-musa)
+    llama_cpp_python_install_target(ggml-rpc)
+    llama_cpp_python_install_target(ggml-sycl)
+    llama_cpp_python_install_target(ggml-vulkan)
+    llama_cpp_python_install_target(synexis_python)
+
+endif ()
