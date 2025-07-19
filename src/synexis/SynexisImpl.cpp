@@ -33,6 +33,7 @@ SynexisImpl::SynexisImpl(const SynexisArguments &args): params(args) {
     auto contextParams = llama_context_default_params();
     contextParams.n_ctx = params.n_ctx;
     contextParams.n_batch = params.n_batch;
+    contextParams.n_ubatch = 512;
     contextParams.n_threads_batch = params.numberOfThreads;
     ctx = llama_init_from_model(model, contextParams);
 
@@ -110,7 +111,7 @@ void SynexisImpl::tokenizationLoop() {
             request = std::move(tokenization_queue.front());
             tokenization_queue.pop_front();
         }
-
+        std::cout << "Delivered a request" << request->prompt << std::endl;
         SynexisSlot *slot = nullptr;
 
         while (running && slot == nullptr) {
@@ -161,6 +162,7 @@ void SynexisImpl::tokenizationLoop() {
 
 
         delete slot->sampler;
+        std::cout << "Creating a slot" << std::endl;
         slot->sampler = new SynexisSampler(model, request->params.samplerParams);
         slot->request = std::move(request);
         slot->state = SLOT_STATE_STARTED;
@@ -180,27 +182,27 @@ void SynexisImpl::updateLoop() {
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
             continue;
         }
-
-        for (auto &slot: slots) {
-            if (!slot->idle() && slot->n_past + 1 >= 8096) {
-                if (mtmd_context) {
-                    continue;
-                }
-
-                auto vocab = llama_model_get_vocab(model);
-                bool add_bos_token = llama_vocab_get_add_bos(vocab);
-                const int n_keep = 128 + add_bos_token;
-                const int n_left = slot->n_past - n_keep;
-                const int n_discard = n_left / 2;
-
-                llama_memory_seq_rm(llama_get_memory(ctx), slot->id, n_keep, n_keep + n_discard);
-                llama_memory_seq_add(llama_get_memory(ctx), slot->id, n_keep + n_discard, slot->n_past, -n_discard);
-
-                slot->cacheTokens.shiftTokens(n_keep, n_discard);
-                slot->n_past -= n_discard;
-                slot->truncated = true;
-            }
-        }
+        // for (auto &slot: slots) {
+        //     if (!slot->idle() && slot->n_past + 1 >= 800) {
+        //         if (mtmd_context) {
+        //             continue;
+        //         }
+        //         std::cout<<"Doing context shifting"<<std::endl;
+        //         auto vocab = llama_model_get_vocab(model);
+        //         bool add_bos_token = llama_vocab_get_add_bos(vocab);
+        //         const int n_keep = params.n_batch + add_bos_token;
+        //         const int n_left = slot->n_past - n_keep;
+        //         const int n_discard = n_left / 2;
+        //         std::cout<<"Removing from sequence"<<std::endl;
+        //         llama_memory_seq_rm(llama_get_memory(ctx), slot->id, n_keep, n_keep + n_discard);
+        //         std::cout<<"Adding to sequence"<<std::endl;
+        //         llama_memory_seq_add(llama_get_memory(ctx), slot->id, n_keep + n_discard, slot->n_past, -n_discard);
+        //         std::cout<<"Shifting Tokens"<<std::endl;
+        //         slot->cacheTokens.shiftTokens(n_keep, n_discard);
+        //         slot->n_past -= n_discard;
+        //         slot->truncated = true;
+        //     }
+        // }
 
         clear_batch(batch);
 
@@ -240,11 +242,14 @@ void SynexisImpl::updateLoop() {
                         slot->reset();
                         continue;
                     }
+                    std::cout << "POoling Type" << llama_pooling_type(ctx) << std::endl;
+                    // if (!(llama_get_memory(ctx) && llama_pooling_type(ctx) == LLAMA_POOLING_TYPE_LAST)) {
+                    //     if (slot->promptSize() > n_ubatch || slot->promptSize() > params.n_ctx) {
+                    //         slot->reset();
+                    //         continue;
+                    //     }
+                    // }
 
-                    if (slot->promptSize() > n_ubatch || slot->promptSize() > 8096) {
-                        slot->reset();
-                        continue;
-                    }
 
                     slot->n_prompt_tokens_processed = 0;
                 }

@@ -29,4 +29,5 @@ struct TaskParams {
 
     std::function<void(const std::string &)> on_token = nullptr;
     std::function<void(const std::string &)> on_done = nullptr;
+    std::function<void(const std::string &)> on_error = nullptr;
 };

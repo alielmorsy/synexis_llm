@@ -45,7 +45,12 @@ struct SynexisSlot {
 
     SynexisSlot &operator=(SynexisSlot &&) = default;
 
-    void reset() {
+    void reset(bool error=true) {
+        std::cout << "I had to reset" << std::endl;
+        if (error &&request && request->params.on_error) {
+
+            request->params.on_error("Force reset from the model");
+        }
         n_past = 0;
         state = SLOT_STATE_IDLE;
         request.reset();
@@ -68,10 +73,9 @@ struct SynexisSlot {
                 request->params.on_done(generatedText);
             }
         }
-        reset();
+        reset(false);
     }
 
-    std::string generate_now(std::string prompt);;
 
     bool processToken(SynexisSlot *slot, const llama_vocab *vocab, int32_t id);;
 

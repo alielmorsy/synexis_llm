@@ -72,3 +72,6 @@ if (SYNEAXIS_PYPROJECT_BUILD)
     llama_cpp_python_install_target(ggml-vulkan)
 
 endif ()
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+add_executable(app main.cpp)
+target_link_libraries(app PRIVATE syneaxis)

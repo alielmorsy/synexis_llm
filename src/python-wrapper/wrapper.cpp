@@ -18,13 +18,17 @@ std::shared_ptr<StreamIterator> stream_task(Synexis &self, TaskParams &params) {
     auto iterator = std::make_shared<StreamIterator>();
     params.stream = true;
     params.on_token = [iterator](const std::string &token) {
+        std::cout << "Generated Token " << token << std::endl;
         iterator->push(token);
     };
 
     params.on_done = [iterator](const std::string &text) {
         iterator->end();
     };
-
+    params.on_error = [](const std::string &error) {
+        py::gil_scoped_acquire acquire;
+        throw py::value_error(error);
+    };
     //TODO
     // params.on_error = [iterator](const std::string &error) {
     //     iterator->set_error();

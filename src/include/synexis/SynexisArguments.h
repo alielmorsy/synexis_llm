@@ -9,8 +9,8 @@ struct SynexisArguments {
     int numberOfThreads = 4;
     bool use_mmap = true;
 
-    int n_ctx = 4096;
-    int n_batch = 2048;
+    int n_ctx = 16*1024;
+    int n_batch = 1024;
     int n_keep = 512;
     int n_discard = 0;
 
