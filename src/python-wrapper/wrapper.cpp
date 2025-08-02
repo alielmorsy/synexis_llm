@@ -83,12 +83,14 @@ PYBIND11_MODULE(synexis_python, m) {
     }
     py::class_<TaskParams>(m, "TaskParams")
             .def(py::init<>())
-            .def(py::init<std::string, SamplingParams>(),
+            .def(py::init<std::string, SamplingParams, int, std::vector<std::string> >(),
                  py::arg("prompt"),
-                 py::arg("sampling_params") = SamplingParams())
+                 py::arg("sampling_params") = SamplingParams(), py::arg("maximum_tokens") = -1,
+                 py::arg("stop_tokens") = std::vector<std::string>())
             .def_readwrite("prompt", &TaskParams::prompt)
             .def_readwrite("sampling_params", &TaskParams::samplerParams)
             .def_readwrite("maximum_tokens", &TaskParams::maximumTokens)
+            .def_readwrite("stop_tokens", &TaskParams::stopTokens)
             .def("add_media", [](TaskParams &self, const py::bytes &media) {
                 std::string_view view = media;
                 self.addMedia(view);

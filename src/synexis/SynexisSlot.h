@@ -37,7 +37,6 @@ struct SynexisSlot {
     int32_t n_prompt_tokens_processed;
     int n_decoded;
 
-    std::string result;
 
     SynexisSlot() = default;
 
@@ -55,7 +54,6 @@ struct SynexisSlot {
         state = SLOT_STATE_IDLE;
         request.reset();
         generatedText.clear();
-        result.clear();
     }
 
     bool idle() const {
@@ -77,7 +75,7 @@ struct SynexisSlot {
     }
 
 
-    bool processToken(SynexisSlot *slot, const llama_vocab *vocab, int32_t id);;
+    bool processToken(const llama_vocab *vocab, int32_t id, std::string &token_str);
 
     size_t promptSize() {
         return tokens.size();

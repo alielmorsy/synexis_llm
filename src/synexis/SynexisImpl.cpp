@@ -381,7 +381,7 @@ void SynexisImpl::updateLoop() {
                 slot->n_decoded += 1;
 
                 auto vocab = llama_model_get_vocab(model);
-                const std::string token_str = tokenToPiece(id, false);
+                std::string token_str = tokenToPiece(id, false);
 
                 if (slot->request->params.stream) {
                     if (slot->request->params.on_token) {
@@ -391,8 +391,7 @@ void SynexisImpl::updateLoop() {
                     slot->generatedText += token_str;
                 }
 
-                slot->result += token_str;
-                if (!slot->processToken(slot.get(), vocab, id)) {
+                if (!slot->processToken(vocab, id,token_str)) {
                     slot->release();
                     continue;
                 }

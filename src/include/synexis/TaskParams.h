@@ -16,10 +16,15 @@ struct TaskParams {
 
     std::vector<MediaDataView> media;
 
+    std::vector<std::string> stopTokens;
+
     TaskParams() = default;
 
-    TaskParams(std::string prompt, SamplingParams samplerParams = SamplingParams()): prompt(std::move(prompt)),
-        samplerParams(std::move(samplerParams)) {
+    TaskParams(std::string prompt, SamplingParams samplerParams = SamplingParams(), int maximumTokens = -1,
+               std::vector<std::string> stopTokens={}): prompt(std::move(prompt)),
+                                                     samplerParams(std::move(samplerParams)),
+                                                     maximumTokens(maximumTokens),
+                                                     stopTokens(std::move(stopTokens)) {
     }
 
     void addMedia(const std::string_view &viewData) {

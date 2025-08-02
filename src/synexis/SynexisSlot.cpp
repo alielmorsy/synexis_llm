@@ -125,7 +125,21 @@ void TaskTokens::keepFirst(size_t n) {
 }
 
 
-bool SynexisSlot::processToken(SynexisSlot *slot, const llama_vocab *vocab, int32_t id) {
-    slot->sampled = id;
-    return !llama_vocab_is_eog(vocab, id);
+bool SynexisSlot::processToken(const llama_vocab *vocab, int32_t id,std::string &token_str) {
+    sampled = id;
+    if (llama_vocab_is_eog(vocab, id)) {
+        return false;
+    }
+
+    if (n_decoded >= request->params.maximumTokens) {
+        return false;
+    }
+
+    for (const auto &stop_word: request->params.stopTokens) {
+        if (token_str.find(stop_word) != std::string::npos) {
+            return false;
+        }
+    }
+
+    return true;
 }
