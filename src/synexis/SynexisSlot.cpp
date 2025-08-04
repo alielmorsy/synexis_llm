@@ -131,7 +131,7 @@ bool SynexisSlot::processToken(const llama_vocab *vocab, int32_t id,std::string 
         return false;
     }
 
-    if (n_decoded >= request->params.maximumTokens) {
+    if (request->params.maximumTokens!=-1 && n_decoded >= request->params.maximumTokens) {
         return false;
     }
 

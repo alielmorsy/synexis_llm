@@ -22,6 +22,12 @@
 
 SynexisImpl::SynexisImpl(const SynexisArguments &args): params(args) {
     ggml_backend_load_all();
+    llama_log_set([](ggml_log_level level, const char *text, void * /*user_data*/) {
+        if (level != GGML_LOG_LEVEL_DEBUG) {
+            std::cerr << text << std::endl;
+        }
+    }, nullptr);
+
     auto modelParams = llama_model_default_params();
     modelParams.use_mmap = args.use_mmap;
     modelParams.n_gpu_layers = args.numberOfGpuLayers;
@@ -391,7 +397,7 @@ void SynexisImpl::updateLoop() {
                     slot->generatedText += token_str;
                 }
 
-                if (!slot->processToken(vocab, id,token_str)) {
+                if (!slot->processToken(vocab, id, token_str)) {
                     slot->release();
                     continue;
                 }
