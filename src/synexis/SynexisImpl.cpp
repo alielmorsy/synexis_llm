@@ -9,6 +9,7 @@
 #include "synexis/TaskParams.h"
 #include "TaskTokens.h"
 #include "utils.h"
+#include "../vendor/llama.cpp/ggml/src/ggml-impl.h"
 #include "synexis/SynexisArguments.h"
 
 #define TOKEN_PIECE_MAX_SIZE 64
@@ -24,7 +25,7 @@ SynexisImpl::SynexisImpl(const SynexisArguments &args): params(args) {
     ggml_backend_load_all();
     llama_log_set([](ggml_log_level level, const char *text, void * /*user_data*/) {
         if (level != GGML_LOG_LEVEL_DEBUG) {
-            std::cerr << text << std::endl;
+            std::cerr << text;
         }
     }, nullptr);
 
@@ -100,6 +101,8 @@ void SynexisImpl::run() {
     running = true;
     tokenization_thread = std::thread(&SynexisImpl::tokenizationLoop, this);
     workerThread = std::thread(&SynexisImpl::updateLoop, this);
+    auto c = workerThread.get_id();
+    std::cout << "C++ thread ID: " << c << std::endl;
 }
 
 void SynexisImpl::stop() {
@@ -117,15 +120,15 @@ void SynexisImpl::tokenizationLoop() {
             request = std::move(tokenization_queue.front());
             tokenization_queue.pop_front();
         }
-        std::cout << "Delivered a request" << request->prompt << std::endl;
         SynexisSlot *slot = nullptr;
-
+        GGML_LOG_INFO("Waiting for a free slot\n");
         while (running && slot == nullptr) {
             slot = findEmptySlot();
             if (slot == nullptr) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
         }
+        GGML_LOG_INFO("Found a free slot\n");
         if (!running) break;
 
         //In case we have mtmd context we would have to parse media files
@@ -168,7 +171,6 @@ void SynexisImpl::tokenizationLoop() {
 
 
         delete slot->sampler;
-        std::cout << "Creating a slot" << std::endl;
         slot->sampler = new SynexisSampler(model, request->params.samplerParams);
         slot->request = std::move(request);
         slot->state = SLOT_STATE_STARTED;
@@ -229,7 +231,6 @@ void SynexisImpl::updateLoop() {
                 compatible_slots.push_back(slot.get());
             }
         }
-
         for (auto slot: compatible_slots) {
             if (slot->state == SLOT_STATE_GENERATING) {
                 slot->i_batch = batch.n_tokens;
@@ -248,7 +249,6 @@ void SynexisImpl::updateLoop() {
                         slot->reset();
                         continue;
                     }
-                    std::cout << "POoling Type" << llama_pooling_type(ctx) << std::endl;
                     // if (!(llama_get_memory(ctx) && llama_pooling_type(ctx) == LLAMA_POOLING_TYPE_LAST)) {
                     //     if (slot->promptSize() > n_ubatch || slot->promptSize() > params.n_ctx) {
                     //         slot->reset();

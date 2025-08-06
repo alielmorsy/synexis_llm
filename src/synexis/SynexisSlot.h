@@ -37,6 +37,7 @@ struct SynexisSlot {
     int32_t n_prompt_tokens_processed;
     int n_decoded;
 
+    bool reuse = false;
 
     SynexisSlot() = default;
 
@@ -44,16 +45,27 @@ struct SynexisSlot {
 
     SynexisSlot &operator=(SynexisSlot &&) = default;
 
-    void reset(bool error=true) {
+    void reset(bool error = true) {
         std::cout << "I had to reset" << std::endl;
-        if (error &&request && request->params.on_error) {
-
+        if (error && request && request->params.on_error) {
             request->params.on_error("Force reset from the model");
+            try {
+                throw std::runtime_error("Failed to generate from model");
+            } catch (...) {
+                request->promise.set_exception(std::current_exception());
+            }
         }
         n_past = 0;
+        n_prompt_tokens_processed = 0;
+        n_decoded = 0;
         state = SLOT_STATE_IDLE;
         request.reset();
+
         generatedText.clear();
+        tokens.keepFirst(0);
+        cacheTokens.keepFirst(0);
+        sampler->reset();
+        reuse = true;
     }
 
     bool idle() const {
@@ -66,6 +78,7 @@ struct SynexisSlot {
 
     void release() {
         if (request) {
+            reuse = true;
             request->promise.set_value(generatedText);
             if (request->params.on_done) {
                 request->params.on_done(generatedText);
