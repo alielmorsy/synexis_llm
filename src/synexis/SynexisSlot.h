@@ -62,8 +62,6 @@ struct SynexisSlot {
         request.reset();
 
         generatedText.clear();
-        tokens.keepFirst(0);
-        cacheTokens.keepFirst(0);
         sampler->reset();
         reuse = true;
     }

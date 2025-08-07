@@ -10,6 +10,7 @@
 #include "TaskTokens.h"
 #include "utils.h"
 #include "../vendor/llama.cpp/ggml/src/ggml-impl.h"
+#include "../vendor/llama.cpp/src/llama-model.h"
 #include "synexis/SynexisArguments.h"
 
 #define TOKEN_PIECE_MAX_SIZE 64
@@ -30,8 +31,8 @@ SynexisImpl::SynexisImpl(const SynexisArguments &args): params(args) {
     }, nullptr);
 
     auto modelParams = llama_model_default_params();
-    modelParams.use_mmap = args.use_mmap;
     modelParams.n_gpu_layers = args.numberOfGpuLayers;
+    modelParams.use_mmap = args.use_mmap;
     model = llama_model_load_from_file(params.modelPath.c_str(), modelParams);
     if (model == nullptr) {
         throw std::runtime_error("Failed to load model");
@@ -42,6 +43,7 @@ SynexisImpl::SynexisImpl(const SynexisArguments &args): params(args) {
     contextParams.n_batch = params.n_batch;
     contextParams.n_ubatch = 512;
     contextParams.n_threads_batch = params.numberOfThreads;
+
     ctx = llama_init_from_model(model, contextParams);
 
     if (ctx == nullptr) {
@@ -190,37 +192,10 @@ void SynexisImpl::updateLoop() {
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
             continue;
         }
-        // for (auto &slot: slots) {
-        //     if (!slot->idle() && slot->n_past + 1 >= 800) {
-        //         if (mtmd_context) {
-        //             continue;
-        //         }
-        //         std::cout<<"Doing context shifting"<<std::endl;
-        //         auto vocab = llama_model_get_vocab(model);
-        //         bool add_bos_token = llama_vocab_get_add_bos(vocab);
-        //         const int n_keep = params.n_batch + add_bos_token;
-        //         const int n_left = slot->n_past - n_keep;
-        //         const int n_discard = n_left / 2;
-        //         std::cout<<"Removing from sequence"<<std::endl;
-        //         llama_memory_seq_rm(llama_get_memory(ctx), slot->id, n_keep, n_keep + n_discard);
-        //         std::cout<<"Adding to sequence"<<std::endl;
-        //         llama_memory_seq_add(llama_get_memory(ctx), slot->id, n_keep + n_discard, slot->n_past, -n_discard);
-        //         std::cout<<"Shifting Tokens"<<std::endl;
-        //         slot->cacheTokens.shiftTokens(n_keep, n_discard);
-        //         slot->n_past -= n_discard;
-        //         slot->truncated = true;
-        //     }
-        // }
 
-        clear_batch(batch);
 
         std::vector<SynexisSlot *> compatible_slots;
-        compatible_slots.reserve(slots.size());
-
         SynexisSlot *slot_batched = nullptr;
-        int32_t n_batch = llama_n_batch(ctx);
-        int32_t n_ubatch = llama_n_ubatch(ctx);
-
         for (auto &slot: slots) {
             if (slot->idle()) continue;
 
@@ -231,6 +206,34 @@ void SynexisImpl::updateLoop() {
                 compatible_slots.push_back(slot.get());
             }
         }
+        for (const auto &slot: compatible_slots) {
+            if (slot->n_past + 1 >= params.n_ctx) {
+                if (mtmd_context) {
+                    continue;
+                }
+                auto vocab = llama_model_get_vocab(model);
+                bool add_bos_token = llama_vocab_get_add_bos(vocab);
+                const int n_keep = params.n_batch + add_bos_token;
+                const int n_left = slot->n_past - n_keep;
+                const int n_discard = n_left / 2;
+                llama_memory_seq_rm(llama_get_memory(ctx), slot->id, n_keep, n_keep + n_discard);
+                llama_memory_seq_add(llama_get_memory(ctx), slot->id, n_keep + n_discard, slot->n_past, -n_discard);
+                slot->cacheTokens.shiftTokens(n_keep, n_discard);
+                slot->n_past -= n_discard;
+                slot->truncated = true;
+            }
+        }
+
+        clear_batch(batch);
+
+
+        compatible_slots.reserve(slots.size());
+
+
+        int32_t n_batch = llama_n_batch(ctx);
+        int32_t n_ubatch = llama_n_ubatch(ctx);
+
+
         for (auto slot: compatible_slots) {
             if (slot->state == SLOT_STATE_GENERATING) {
                 slot->i_batch = batch.n_tokens;
@@ -303,7 +306,6 @@ void SynexisImpl::updateLoop() {
 
                 if (slot->n_past == slot->promptSize()) {
                     slot->state = SLOT_STATE_DONE_PROMPT;
-                    slot->sampler->reset();
 
                     const auto &tokens = slot->tokens.getTokens();
                     for (int i = 0; i < slot->promptSize(); ++i) {
