@@ -27,6 +27,8 @@ public:
 
     std::string getToken(std::string str) const;
 
+    std::vector<std::vector<float>> getEmbedding(const std::string &str);
+
 private:
     SynexisImpl *impl;
 };

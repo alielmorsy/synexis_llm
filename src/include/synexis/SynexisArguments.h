@@ -16,6 +16,8 @@ struct SynexisArguments {
 
     int n_slots = 8;
 
+    bool embedding = false;
+
     explicit SynexisArguments(std::string modelPath): modelPath(std::move(modelPath)) {
     }
 };

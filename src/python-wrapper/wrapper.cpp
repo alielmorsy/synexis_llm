@@ -10,7 +10,7 @@
 #include <synexis/TaskParams.h>
 #include <synexis/sampler/StructParams.h>
 #include "StreamIterator.h"
-
+#include <pybind11/numpy.h>
 
 namespace py = pybind11;
 
@@ -18,7 +18,6 @@ std::shared_ptr<StreamIterator> stream_task(Synexis &self, TaskParams &params) {
     auto iterator = std::make_shared<StreamIterator>();
     params.stream = true;
     params.on_token = [iterator](const std::string &token) {
-        std::cout << "Generated Token " << token << std::endl;
         iterator->push(token);
     };
 
@@ -29,10 +28,6 @@ std::shared_ptr<StreamIterator> stream_task(Synexis &self, TaskParams &params) {
         py::gil_scoped_acquire acquire;
         throw py::value_error(error);
     };
-    //TODO
-    // params.on_error = [iterator](const std::string &error) {
-    //     iterator->set_error();
-    // };
 
     try {
         py::gil_scoped_release release;
@@ -62,6 +57,7 @@ PYBIND11_MODULE(synexis_python, m) {
             .def_readwrite("n_batch", &SynexisArguments::n_batch)
             .def_readwrite("n_keep", &SynexisArguments::n_keep)
             .def_readwrite("n_discard", &SynexisArguments::n_discard)
+            .def_readwrite("embedding", &SynexisArguments::embedding)
             .def_readwrite("n_slots", &SynexisArguments::n_slots);
 
     py::class_<StreamIterator, std::shared_ptr<StreamIterator> >(m, "StreamIterator")
@@ -117,8 +113,16 @@ PYBIND11_MODULE(synexis_python, m) {
 
             .def("complete_stream", &stream_task, py::arg("params"),
                  "Adds a task for streaming generation and returns an iterator.")
-            .def("get_template", &get_template, "Get the model template or fallback to the default one").
-            def("get_tokens", [](Synexis &self) {
+            .def("get_template", &get_template, "Get the model template or fallback to the default one")
+            .def("get_embedding", [](Synexis &self, std::string &prompt) {
+                auto res = self.getEmbedding(prompt);
+                auto &vec = res[0]; // std::vector<float>
+                return py::array_t(
+                    vec.size(), // length
+                    vec.data() // pointer to data
+                );
+            })
+            .def("get_tokens", [](Synexis &self) {
                 py::dict d;
                 d["bos_token"] = self.getToken("BOS");
                 d["eos_token"] = self.getToken("EOS");

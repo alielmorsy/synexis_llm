@@ -23,6 +23,8 @@ public:
 
     SynexisImpl(const SynexisArguments &args);
 
+    std::vector<std::vector<float>> getEmbedding(const std::string &prompt);
+
     std::future<std::string> addTask(const std::string &prompt, const TaskParams &params);
 
     void run();

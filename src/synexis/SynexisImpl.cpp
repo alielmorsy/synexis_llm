@@ -43,7 +43,7 @@ SynexisImpl::SynexisImpl(const SynexisArguments &args): params(args) {
     contextParams.n_batch = params.n_batch;
     contextParams.n_ubatch = 512;
     contextParams.n_threads_batch = params.numberOfThreads;
-
+    contextParams.embeddings = args.embedding;
     ctx = llama_init_from_model(model, contextParams);
 
     if (ctx == nullptr) {
@@ -67,16 +67,158 @@ SynexisImpl::SynexisImpl(const SynexisArguments &args): params(args) {
     batch = llama_batch_init(params.n_batch, 0, 1);
 }
 
+void common_embd_normalize(const float *inp, float *out, int n, int embd_norm) {
+    double sum = 0.0;
+
+    switch (embd_norm) {
+        case -1: // no normalisation
+            sum = 1.0;
+            break;
+        case 0: // max absolute
+            for (int i = 0; i < n; i++) {
+                if (sum < std::abs(inp[i])) {
+                    sum = std::abs(inp[i]);
+                }
+            }
+            sum /= 32760.0; // make an int16 range
+            break;
+        case 2: // euclidean
+            for (int i = 0; i < n; i++) {
+                sum += inp[i] * inp[i];
+            }
+            sum = std::sqrt(sum);
+            break;
+        default: // p-norm (euclidean is p-norm p=2)
+            for (int i = 0; i < n; i++) {
+                sum += std::pow(std::abs(inp[i]), embd_norm);
+            }
+            sum = std::pow(sum, 1.0 / embd_norm);
+            break;
+    }
+
+    const float norm = sum > 0.0 ? 1.0 / sum : 0.0f;
+
+    for (int i = 0; i < n; i++) {
+        out[i] = inp[i] * norm;
+    }
+}
+
+std::vector<std::vector<float> > SynexisImpl::getEmbedding(const std::string &prompt) {
+    clear_batch(batch);
+    llama_memory_clear(llama_get_memory(ctx), true);
+    const int n_embd = llama_model_n_embd(model);
+
+    std::vector<std::vector<float> > embeddings_res;
+    std::vector embeddings(n_embd, 0.0f);
+
+    size_t n_tokens = prompt.size();
+    auto vocab = llama_model_get_vocab(model);
+    std::vector<llama_token> tokenized(n_tokens);
+    n_tokens = llama_tokenize(vocab, prompt.data(), n_tokens, tokenized.data(),
+                              tokenized.size(), true,
+                              true);
+    tokenized.resize(n_tokens);
+    int n_past = 0;
+    for (int i = 0; i < n_tokens; ++i) {
+        batch_add(batch, tokenized[i], n_past++, {0}, true);
+    }
+    int res = llama_decode(ctx, batch);
+    for (int i = 0; i < batch.n_tokens; ++i) {
+        if (!batch.logits[i]) {
+            continue;
+        }
+
+        const float *embd = nullptr;
+        if (llama_pooling_type(ctx) == LLAMA_POOLING_TYPE_NONE) {
+            embd = llama_get_embeddings_ith(ctx, i);
+        } else {
+            embd = llama_get_embeddings_seq(ctx, batch.seq_id[i][0]);
+        }
+        if (llama_pooling_type(ctx) != LLAMA_POOLING_TYPE_NONE) {
+            //embd_normalize (-1=none, 0=max absolute int16, 1=taxicab, 2=Euclidean/L2, >2=p-norm)
+            common_embd_normalize(embd, embeddings.data(), n_embd, 2);
+            embeddings_res.push_back(embeddings);
+            break;
+        } else
+            embeddings_res.emplace_back(embd, embd + n_embd);
+    }
+    return embeddings_res;
+}
 
 std::future<std::string> SynexisImpl::addTask(const std::string &prompt, const TaskParams &params) {
     auto request = std::make_unique<Request>();
     request->prompt = prompt;
     request->params = params;
-    std::future<std::string> future = request->promise.get_future(); {
-        std::lock_guard lock(tokenization_queue_mutex);
-        tokenization_queue.push_back(std::move(request));
+
+    // Create a promise/future pair
+    std::future<std::string> future = request->promise.get_future();
+
+    // Find a free slot
+    SynexisSlot *slot = nullptr;
+    //Forcing one slot to be selected at atime
+    std::unique_lock lock(slotLock);
+    GGML_LOG_INFO("Waiting for a free slot\n");
+    while (slot == nullptr) {
+        slot = findEmptySlot();
+        if (slot == nullptr) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
     }
-    tokenization_queue_cv.notify_one();
+    GGML_LOG_INFO("Found a free slot\n");
+    // Tokenization
+    if (mtmd_context != nullptr) {
+        mtmd::bitmaps bitmaps;
+        for (auto &[data, size]: request->params.media) {
+            mtmd::bitmap bmp(mtmd_helper_bitmap_init_from_buf(mtmd_context, data, size));
+            std::string hash = fnv_hash(bmp.data(), bmp.n_bytes());
+            bmp.set_id(hash.c_str());
+            bitmaps.entries.push_back(std::move(bmp));
+        }
+
+        mtmd_input_text inp_txt = {
+            request->prompt.c_str(),
+            /* add_special */ true,
+            /* parse_special */ true,
+        };
+
+        mtmd::input_chunks chunks(mtmd_input_chunks_init());
+        auto bitmaps_c_ptr = bitmaps.c_ptr();
+        int32_t tokenized = mtmd_tokenize(
+            mtmd_context,
+            chunks.ptr.get(),
+            &inp_txt,
+            bitmaps_c_ptr.data(),
+            bitmaps_c_ptr.size()
+        );
+
+        if (tokenized != 0) {
+            throw std::runtime_error("Failed to tokenize prompt");
+        }
+
+        slot->tokens = TaskTokens(chunks);
+    } else {
+        size_t n_tokens = request->prompt.length();
+        auto vocab = llama_model_get_vocab(model);
+        std::vector<llama_token> tokenized(n_tokens);
+        n_tokens = llama_tokenize(
+            vocab,
+            request->prompt.data(),
+            request->prompt.length(),
+            tokenized.data(),
+            tokenized.size(),
+            false,
+            true
+        );
+        tokenized.resize(n_tokens);
+        slot->tokens = TaskTokens(std::move(tokenized));
+    }
+
+    // Setup the sampler and slot
+    delete slot->sampler;
+    slot->sampler = new SynexisSampler(model, request->params.samplerParams);
+    slot->request = std::move(request);
+    slot->state = SLOT_STATE_STARTED;
+
     return future;
 }
 
@@ -101,7 +243,7 @@ std::string SynexisImpl::tokenToPiece(llama_token token, bool special) const {
 
 void SynexisImpl::run() {
     running = true;
-    tokenization_thread = std::thread(&SynexisImpl::tokenizationLoop, this);
+    //tokenization_thread = std::thread(&SynexisImpl::tokenizationLoop, this);
     workerThread = std::thread(&SynexisImpl::updateLoop, this);
     auto c = workerThread.get_id();
     std::cout << "C++ thread ID: " << c << std::endl;
@@ -343,10 +485,9 @@ void SynexisImpl::updateLoop() {
                 batch.seq_id + i,
                 batch.logits + i,
             };
-
             const int ret = llama_decode(ctx, batch_view);
-
             if (ret != 0) {
+                std::cerr << "Retrying Batch" << std::endl;
                 if (n_batch == 1 && ret == 1) {
                     for (auto &slot: slots) {
                         slot->reset();
@@ -437,9 +578,9 @@ SynexisImpl::~SynexisImpl() {
     if (running) {
         stop();
     }
-    if (tokenization_thread.joinable()) {
-        tokenization_thread.join();
-    }
+    // if (tokenization_thread.joinable()) {
+    //     tokenization_thread.join();
+    // }
     if (workerThread.joinable()) {
         workerThread.join();
     }

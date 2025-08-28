@@ -32,6 +32,10 @@ std::string Synexis::getToken(std::string str) const {
     return impl->getToken(str);
 }
 
+std::vector<std::vector<float>> Synexis::getEmbedding(const std::string &str) {
+    return impl->getEmbedding(str);
+}
+
 
 Synexis::~Synexis() {
     delete impl;
